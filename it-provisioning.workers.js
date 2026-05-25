@@ -1,34 +1,17 @@
 import 'dotenv/config'
 import { Camunda8 } from '@camunda8/sdk'
 
-// Zero-conf constructor — reads all config from environment variables.
-// For SaaS set these in your .env:
-//   ZEEBE_GRPC_ADDRESS=grpcs://<cluster>.zeebe.camunda.io:443
-//   ZEEBE_REST_ADDRESS=https://<region>.zeebe.camunda.io/<cluster-id>
-//   ZEEBE_CLIENT_ID=...
-//   ZEEBE_CLIENT_SECRET=...
-//   CAMUNDA_OAUTH_URL=https://login.cloud.camunda.io/oauth/token
-//   CAMUNDA_AUTH_STRATEGY=OAUTH
-//
-// For local C8Run (dev):
-//   ZEEBE_REST_ADDRESS=http://localhost:8080
-//   ZEEBE_GRPC_ADDRESS=grpc://localhost:26500
-//   CAMUNDA_AUTH_STRATEGY=NONE
-
 const c8 = new Camunda8()
 
-// Job workers use the Zeebe gRPC client — still the correct path for workers
 const zeebe = c8.getZeebeGrpcApiClient()
 
-// ─── Worker 1: create-email-address ───────────────────────────────────────
 zeebe.createWorker({
     taskType: 'create-email-address',
     taskHandler: async (job) => {
         const { firstName, lastName, adAccountId } = job.variables
 
         try {
-            const emailAddress =
-                `${firstName.toLowerCase()}.${lastName.toLowerCase()}@company.com`
+            const emailAddress = `${firstName}-${lastName}@company.com`
 
             // TODO: call your mail provisioning API (Exchange, Google Workspace, etc.)
             console.log(
@@ -47,7 +30,6 @@ zeebe.createWorker({
     },
 })
 
-// ─── Worker 2: fulfill-hardware ───────────────────────────────────────────
 zeebe.createWorker({
     taskType: 'fulfill-hardware',
     taskHandler: async (job) => {
@@ -60,6 +42,10 @@ zeebe.createWorker({
                 hardwareTier,
                 location,
             })
+
+            if (location === 'bratislava') {
+                result.status = 'OUT_OF_STOCK' // simulate out-of-stock for testing
+            }
 
             if (result.status === 'OUT_OF_STOCK') {
                 // Throws a BPMN error — caught by the boundary event on this task
@@ -83,7 +69,6 @@ zeebe.createWorker({
     },
 })
 
-// ─── Worker 3: notify-hr-hardware-delay ───────────────────────────────────
 zeebe.createWorker({
     taskType: 'notify-hr-hardware-delay',
     taskHandler: async (job) => {
@@ -99,8 +84,53 @@ zeebe.createWorker({
     },
 })
 
-// ─── Stub: hardware procurement API ───────────────────────────────────────
 async function dispatchHardwareOrder({ firstName, lastName, hardwareTier, location }) {
     // TODO: call your real procurement API
     return { status: 'DISPATCHED', orderId: `HW-${Date.now()}` }
 }
+
+zeebe.createWorker({
+    taskType: 'check-hardware-stock',
+    taskHandler: async (job) => {
+        const { hardwareTier, location } = job.variables
+
+        try {
+            // TODO: call your real inventory API
+            const result = await checkInventory({ hardwareTier, location })
+
+            console.log(
+                `[check-hardware-stock] ${hardwareTier} at ${location}: ${result.inStock ? 'IN STOCK' : 'OUT OF STOCK'}`
+            )
+
+            return job.complete({ hardwareInStock: result.inStock })
+
+        } catch (err) {
+            return job.fail({
+                errorMessage: `Stock check failed: ${err.message}`,
+                retryBackOff: 5000,
+            })
+        }
+    },
+})
+
+zeebe.createWorker({
+    taskType: 'fulfill-hardware-no-issue',
+    taskHandler: async (job) => {
+        console.log('[fulfill-hardware-no-issue] Simulating hardware fulfillment without stock check that will work 100%!');
+
+        return job.complete({hardwareInStock: true});
+    }
+})
+
+async function checkInventory({ hardwareTier, location }) {
+    // Simulate stock returning after a few checks
+    const inStock = Math.random() > 0.5
+    return { inStock }
+}
+
+zeebe.createWorker({
+    taskType: "it-accounts-ready-notification",
+    taskHandler: async (job) => {
+        return job.complete();
+    }
+})
