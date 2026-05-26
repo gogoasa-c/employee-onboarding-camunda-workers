@@ -8,10 +8,11 @@
   "main": "it-provisioning.workers.js",
   "scripts": {
     "it-provisioning": "node it-provisioning.workers.js",
+    "hr-onboarding": "node hr-onboarding.workers.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "@camunda8/sdk": "^8.8.11",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2"  
   }
 }
