@@ -9,6 +9,7 @@
   "scripts": {
     "it-provisioning": "node it-provisioning.workers.js",
     "hr-onboarding": "node hr-onboarding.workers.js",
+    "rollback": "node rollback.workers.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
