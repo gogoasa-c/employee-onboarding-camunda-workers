@@ -127,8 +127,29 @@ async function checkInventory({ hardwareTier, location }) {
 }
 
 zeebe.createWorker({
-    taskType: "it-accounts-ready-notification",
+    taskType: 'it-accounts-ready-notification',
     taskHandler: async (job) => {
-        return job.complete();
-    }
+        const { correlationKey } = job.variables
+
+        try {
+            // Publish the message to wake up the parent catch event
+            await zeebe.publishMessage({
+                name: 'IT_READY_ACCOUNTS',
+                correlationKey: 'IT_READY_ACCOUNTS',
+                timeToLive: { seconds: 60 },
+                variables: {
+                    itProvisioningComplete: true
+                }
+            })
+
+            console.log(`[it-accounts-ready] Message published with correlationKey: ${correlationKey}`)
+            return job.complete()
+
+        } catch (err) {
+            return job.fail({
+                errorMessage: `Failed to publish IT ready message: ${err.message}`,
+                retryBackOff: 5000,
+            })
+        }
+    },
 })
