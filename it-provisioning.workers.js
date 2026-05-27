@@ -123,9 +123,7 @@ zeebe.createWorker({
 })
 
 async function checkInventory({ hardwareTier, location }) {
-    // Simulate stock returning after a few checks
-    const inStock = Math.random() > 0.5
-    return { inStock }
+    return { inStock: true }
 }
 
 zeebe.createWorker({
